@@ -20,7 +20,7 @@ export const authApi = {
 };
 
 export const employeesApi = {
-  list: (params?: { page?: number; limit?: number; search?: string }) =>
+  list: (params?: { page?: number; limit?: number; search?: string; department?: string }) =>
     apiClient.get<ApiResponse<EmployeesResponse>>('/employees', { params }),
   get: (id: string) => apiClient.get<ApiResponse<Employee>>(`/employees/${id}`),
   create: (data: Partial<Employee>) => apiClient.post<ApiResponse<Employee>>('/employees', data),
@@ -30,7 +30,7 @@ export const employeesApi = {
 };
 
 export const payrollApi = {
-  list: (params?: { page?: number; limit?: number }) =>
+  list: (params?: { page?: number; limit?: number; search?: string; payPeriod?: string }) =>
     apiClient.get<ApiResponse<PayrollResponse>>('/payroll', { params }),
   my: () =>
     apiClient.get<ApiResponse<{ employee: Employee; payroll: PayrollRecord[] }>>('/payroll/me'),

@@ -2,9 +2,25 @@ import { Payroll } from '../models/Payroll.js';
 import { Employee } from '../models/Employee.js';
 import { ApiError } from '../utils/ApiError.js';
 
-export async function listPayroll(tenantId, { page = 1, limit = 50 } = {}) {
+export async function listPayroll(tenantId, { page = 1, limit = 50, search = '', payPeriod = '' } = {}) {
   const skip = (page - 1) * limit;
   const filter = { tenantId };
+
+  if (payPeriod) {
+    filter.payPeriod = payPeriod;
+  }
+
+  // If searching, find matching employee IDs first
+  let employeeIds = null;
+  if (search) {
+    const regex = new RegExp(search, 'i');
+    const matchingEmployees = await Employee.find({
+      tenantId,
+      $or: [{ firstName: regex }, { lastName: regex }, { email: regex }, { employeeCode: regex }],
+    }).select('_id');
+    employeeIds = matchingEmployees.map((e) => e._id);
+    filter.employeeId = { $in: employeeIds };
+  }
 
   const [records, total] = await Promise.all([
     Payroll.find(filter)
@@ -21,6 +37,10 @@ export async function listPayroll(tenantId, { page = 1, limit = 50 } = {}) {
   };
 }
 
+export async function getDistinctPeriods(tenantId) {
+  return Payroll.distinct('payPeriod', { tenantId });
+}
+
 export async function getMyPayroll(tenantId, employeeId) {
   if (!employeeId) {
     throw new ApiError(400, 'No employee profile linked to this user');
@@ -33,7 +53,7 @@ export async function getMyPayroll(tenantId, employeeId) {
 
   const records = await Payroll.find({ tenantId, employeeId })
     .sort({ processedAt: -1 })
-    .limit(12);
+    .limit(24);
 
   return { employee, payroll: records };
 }

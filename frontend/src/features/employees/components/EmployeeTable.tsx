@@ -1,94 +1,174 @@
-import { useCallback, useRef, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useEmployeesQuery } from '../../../queries/useEmployeesQuery';
-import { EmployeeRow } from './EmployeeRow';
-import { Card } from '../../../components/Card';
-import { Input } from '../../../components/Input';
-import { Spinner } from '../../../components/Spinner';
-import { EmptyState } from '../../../components/EmptyState';
+import { useDeleteEmployee } from '../hooks/useEmployeeMutations';
+import { usePagination } from '../../../hooks/usePagination';
+import { DataTable, type Column } from '../../../components/DataTable';
+import { SearchInput } from '../../../components/SearchInput';
+import { Select } from '../../../components/Select';
+import { Badge } from '../../../components/Badge';
+import { Button } from '../../../components/Button';
+import { PermissionGate } from '../../../components/PermissionGate';
+import { PERMISSIONS } from '../../../constants';
+import { formatDate } from '../../../utils';
+import type { Employee } from '../../../types';
+import { EmployeeFormModal } from './EmployeeFormModal';
+
+const DEPARTMENTS = [
+  { value: '', label: 'All Departments' },
+  { value: 'Engineering', label: 'Engineering' },
+  { value: 'HR', label: 'HR' },
+  { value: 'Finance', label: 'Finance' },
+  { value: 'Operations', label: 'Operations' },
+  { value: 'Sales', label: 'Sales' },
+  { value: 'Marketing', label: 'Marketing' },
+];
 
 export function EmployeeTable() {
   const [search, setSearch] = useState('');
-  const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const parentRef = useRef<HTMLDivElement>(null);
+  const [department, setDepartment] = useState('');
+  const { page, limit, setPage, setLimit } = usePagination({ initialLimit: 10 });
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const { data, isLoading, isError, error } = useEmployeesQuery(search, 1, 200);
+  const { data, isLoading } = useEmployeesQuery(search, page, limit, department);
+  const deleteMutation = useDeleteEmployee();
   const employees = data?.employees ?? [];
+  const pagination = data?.pagination;
 
-  const rowVirtualizer = useVirtualizer({
-    count: employees.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 48,
-    overscan: 10,
-  });
+  const handleDelete = (emp: Employee) => {
+    if (window.confirm(`Delete ${emp.firstName} ${emp.lastName}?`)) {
+      deleteMutation.mutate(emp._id);
+    }
+  };
 
-  const handleHighlight = useCallback((id: string) => {
-    setHighlightedId(id);
-  }, []);
-
-  if (isLoading) return <Spinner label="Loading employees..." />;
-  if (isError) {
-    return (
-      <EmptyState
-        title="Failed to load employees"
-        description={(error as Error)?.message || 'Check your permissions and API connection'}
-      />
-    );
-  }
+  const columns: Column<Employee>[] = [
+    {
+      key: 'code',
+      header: 'Code',
+      className: 'w-[100px]',
+      render: (emp) => <span className="font-mono text-xs text-slate-500">{emp.employeeCode}</span>,
+    },
+    {
+      key: 'name',
+      header: 'Name',
+      render: (emp) => (
+        <div>
+          <p className="font-medium text-slate-900">{emp.firstName} {emp.lastName}</p>
+          <p className="text-xs text-muted">{emp.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      render: (emp) => emp.department,
+    },
+    {
+      key: 'position',
+      header: 'Position',
+      render: (emp) => emp.position,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (emp) => (
+        <Badge variant={emp.status === 'active' ? 'success' : 'default'}>
+          {emp.status}
+        </Badge>
+      ),
+    },
+    {
+      key: 'hireDate',
+      header: 'Hired',
+      render: (emp) => <span className="text-sm text-muted">{formatDate(emp.hireDate)}</span>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-[80px]',
+      render: (emp) => (
+        <PermissionGate permission={PERMISSIONS.EMPLOYEES_WRITE}>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setEditingEmployee(emp)}
+              className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary-600"
+              title="Edit"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => handleDelete(emp)}
+              className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              title="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </PermissionGate>
+      ),
+    },
+  ];
 
   return (
-    <Card
-      title="Employees"
-      description="Virtualized list — click a row to demo reconciliation (only that row re-renders)"
-    >
-      <div className="mb-4">
-        <Input
-          placeholder="Search by name, email, or code..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <p className="mt-2 text-xs text-muted">
-          Showing {employees.length} of {data?.pagination.total ?? 0} employees (tenant-scoped)
-        </p>
-      </div>
-
-      <div className="grid grid-cols-6 gap-4 border-b border-border px-4 py-2 text-xs font-semibold uppercase text-muted">
-        <span>Code</span>
-        <span className="col-span-2">Name</span>
-        <span>Email</span>
-        <span>Department</span>
-        <span>Status</span>
-      </div>
-
-      <div ref={parentRef} className="h-[500px] overflow-auto">
-        <div
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const employee = employees[virtualRow.index];
-            return (
-              <EmployeeRow
-                key={employee._id}
-                employee={employee}
-                isHighlighted={highlightedId === employee._id}
-                onHighlight={handleHighlight}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              />
-            );
-          })}
+    <>
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 gap-3">
+          <SearchInput
+            value={search}
+            onChange={(v) => { setSearch(v); setPage(1); }}
+            placeholder="Search employees..."
+            className="w-full sm:max-w-xs"
+          />
+          <Select
+            value={department}
+            onChange={(e) => { setDepartment(e.target.value); setPage(1); }}
+            options={DEPARTMENTS}
+            className="w-44"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <Select
+            value={String(limit)}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            options={[
+              { value: '10', label: '10 / page' },
+              { value: '20', label: '20 / page' },
+              { value: '50', label: '50 / page' },
+            ]}
+            className="w-28"
+          />
+          <PermissionGate permission={PERMISSIONS.EMPLOYEES_WRITE}>
+            <Button size="sm" onClick={() => setShowCreateModal(true)}>
+              + Add Employee
+            </Button>
+          </PermissionGate>
         </div>
       </div>
-    </Card>
+
+      <DataTable
+        columns={columns}
+        data={employees}
+        keyExtractor={(emp) => emp._id}
+        isLoading={isLoading}
+        emptyTitle="No employees found"
+        emptyDescription="Try adjusting your search or filters."
+        pagination={pagination ? {
+          page: pagination.page,
+          totalPages: pagination.totalPages,
+          total: pagination.total,
+          limit: pagination.limit,
+          onPageChange: setPage,
+        } : undefined}
+      />
+
+      {/* Create/Edit Modal */}
+      <EmployeeFormModal
+        open={showCreateModal || !!editingEmployee}
+        onClose={() => { setShowCreateModal(false); setEditingEmployee(null); }}
+        employee={editingEmployee}
+      />
+    </>
   );
 }

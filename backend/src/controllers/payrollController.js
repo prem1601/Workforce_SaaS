@@ -22,8 +22,15 @@ export const listPayroll = asyncHandler(async (req, res) => {
   const result = await payrollService.listPayroll(req.tenantId, {
     page: Number(req.query.page) || 1,
     limit: Number(req.query.limit) || 50,
+    search: req.query.search || '',
+    payPeriod: req.query.payPeriod || '',
   });
   res.json({ success: true, data: result });
+});
+
+export const getDistinctPeriods = asyncHandler(async (req, res) => {
+  const periods = await payrollService.getDistinctPeriods(req.tenantId);
+  res.json({ success: true, data: periods.sort().reverse() });
 });
 
 export const getMyPayroll = asyncHandler(async (req, res) => {

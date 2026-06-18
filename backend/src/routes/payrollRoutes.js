@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticate, tenantMiddleware);
 
 router.get('/me', requirePermission(PERMISSIONS.PAYROLL_READ_SELF), payrollController.getMyPayroll);
+router.get('/periods', requirePermission(PERMISSIONS.PAYROLL_READ), payrollController.getDistinctPeriods);
 router.get('/', requirePermission(PERMISSIONS.PAYROLL_READ), payrollController.listPayroll);
 router.post(
   '/',

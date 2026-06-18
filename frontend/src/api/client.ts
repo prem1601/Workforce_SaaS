@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { toast } from 'sonner';
 import { store } from '../store';
 import { logout, setCredentials, updateAccessToken } from '../store/slices/authSlice';
 import type { ApiResponse, LoginResponse } from '../types';
@@ -88,6 +89,12 @@ apiClient.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    if (error.response?.status === 403) {
+      toast.error('You do not have permission to perform this action');
+    } else if (error.response?.status && error.response.status >= 500) {
+      toast.error('Server error — please try again later');
     }
 
     return Promise.reject(error);
