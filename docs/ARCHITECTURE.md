@@ -9,7 +9,7 @@ flowchart LR
   User[User Login] --> JWT[JWT with tenantId + role]
   JWT --> API[Express API]
   API --> TenantFilter["Query filter: { tenantId }"]
-  TenantFilter --> MongoDB[(MongoDB)]
+  TenantFilter --> MongoDB[(MongoDB)] 
   API --> RBAC[RBAC Middleware]
   RBAC --> Controller[Controller]
 ```
